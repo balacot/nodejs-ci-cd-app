@@ -1,0 +1,15 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Node.js cache
+node_modules/
+npm-debug.log
+
+# System files
+.DS_Store
+Thumbs.db
