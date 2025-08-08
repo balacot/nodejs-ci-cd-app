@@ -5,7 +5,7 @@ on:
     branches: [ "main" ]
 
 permissions:
-  id-token: write
+  id-token: write    # necesario para OIDC
   contents: read
 
 env:
@@ -17,7 +17,7 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    environment: development
+    environment: development   # debe existir y tener el secret AWS_OIDC_ROLE_ARN
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,13 +25,17 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN_DEV }}
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}   # <- ARN del rol OIDC
           aws-region: ${{ env.AWS_REGION }}
+          # role-duration-seconds: 3600  # opcional si tu job es largo
+
+      # sanity check: confirma que tenemos credenciales temporales válidas
+      - name: WhoAmI
+        run: aws sts get-caller-identity
 
       - name: Get AWS Account ID
         id: acct
-        run: |
-          echo "ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_OUTPUT
+        run: echo "ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_OUTPUT
 
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
@@ -43,8 +47,8 @@ jobs:
           ACCOUNT_ID: ${{ steps.acct.outputs.ACCOUNT_ID }}
         run: |
           docker build -t $ACCOUNT_ID.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/$ECR_REPO:$IMAGE_TAG ./app
-          docker tag $ACCOUNT_ID.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/$ECR_REPO:$IMAGE_TAG \
-                     $ACCOUNT_ID.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/$ECR_REPO:latest
+          docker tag  $ACCOUNT_ID.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/$ECR_REPO:$IMAGE_TAG \
+                      $ACCOUNT_ID.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/$ECR_REPO:latest
           docker push $ACCOUNT_ID.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/$ECR_REPO:$IMAGE_TAG
           docker push $ACCOUNT_ID.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/$ECR_REPO:latest
 
@@ -64,16 +68,7 @@ jobs:
           CONTS=$(echo "$BASE_TD" | jq '.taskDefinition.containerDefinitions')
           NEW_CONTS=$(echo "$CONTS" | jq ".[0].image = \"$IMAGE\"")
           NEW_TD=$(jq -n --arg er "$EXEC_ROLE" --arg tr "$TASK_ROLE" --arg cpu "$CPU" --arg mem "$MEM" --arg net "$NET" --argjson conts "$NEW_CONTS" --arg req "$REQS" '
-            {
-              family: "'$FAMILY'",
-              executionRoleArn: $er,
-              taskRoleArn: $tr,
-              networkMode: $net,
-              cpu: $cpu,
-              memory: $mem,
-              requiresCompatibilities: [$req],
-              containerDefinitions: $conts
-            }')
+            { family:"'$FAMILY'", executionRoleArn:$er, taskRoleArn:$tr, networkMode:$net, cpu:$cpu, memory:$mem, requiresCompatibilities:[$req], containerDefinitions:$conts }')
           echo "$NEW_TD" > new-td.json
           aws ecs register-task-definition --cli-input-json file://new-td.json > reg.json
           ARN=$(jq -r '.taskDefinition.taskDefinitionArn' reg.json)
@@ -84,5 +79,4 @@ jobs:
           CLUSTER: ${{ env.CLUSTER_NAME }}
           SERVICE: ${{ env.SERVICE_NAME }}
           TD_ARN: ${{ steps.regtd.outputs.TD_ARN }}
-        run: |
-          aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" --task-definition "$TD_ARN" --force-new-deployment
+        run: aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" --task-definition "$TD_ARN" --force-new-deployment
