@@ -1,0 +1,14 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+
+# Node / Docker
+node_modules/
+npm-debug.log
+
+# IDE / SO
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,15 @@
+# STAGING
+cd terraform/env/stg
+terraform init
+terraform apply -var-file=variables.tfvars
+
+# OUTPUTS: copia el github_oidc_role_arn y guárdalo como secreto:
+#   AWS_OIDC_ROLE_ARN_STG
+
+# PRODUCTION
+cd ../prod
+terraform init
+terraform apply -var-file=variables.tfvars
+
+# OUTPUTS: copia el github_oidc_role_arn y guárdalo como:
+#   AWS_OIDC_ROLE_ARN_PROD

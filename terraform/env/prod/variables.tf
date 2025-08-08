@@ -1,0 +1,10 @@
+variable "project_name"    { type = string }
+variable "aws_region"      { type = string }
+variable "vpc_cidr"        { type = string }
+variable "public_subnets"  { type = list(string) }
+variable "private_subnets" { type = list(string) }
+variable "container_port"  { type = number }
+variable "cpu"             { type = number }
+variable "memory"          { type = number }
+variable "github_repo"     { type = string }
+variable "oidc_sub"        { type = string } # e.g. repo:balacot/nodejs-ci-cd-app:ref:refs/tags/*

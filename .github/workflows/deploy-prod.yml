@@ -1,0 +1,78 @@
+name: Deploy PROD
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  PROJECT_NAME: nodejs-app-prod
+  CLUSTER_NAME: nodejs-app-prod-cluster
+  SERVICE_NAME: nodejs-app-prod-service
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: production   # Configura approvals en Repo -> Settings -> Environments -> production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get AWS Account ID
+        id: acct
+        run: echo "ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_OUTPUT
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push image (tag = release tag)
+        env:
+          ECR_REPO: ${{ env.PROJECT_NAME }}
+          IMAGE_TAG_SHA: ${{ github.sha }}
+          IMAGE_TAG_REL: ${{ github.ref_name }}   # nombre del tag de la release, p.ej. v1.2.3
+          ACCOUNT_ID: ${{ steps.acct.outputs.ACCOUNT_ID }}
+        run: |
+          docker build -t $ACCOUNT_ID.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/$ECR_REPO:$IMAGE_TAG_SHA ./app
+          docker tag  $ACCOUNT_ID.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/$ECR_REPO:$IMAGE_TAG_SHA \
+                      $ACCOUNT_ID.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/$ECR_REPO:$IMAGE_TAG_REL
+          docker push $ACCOUNT_ID.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/$ECR_REPO:$IMAGE_TAG_SHA
+          docker push $ACCOUNT_ID.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/$ECR_REPO:$IMAGE_TAG_REL
+
+      - name: Register new Task Definition with new image
+        id: regtd
+        env:
+          FAMILY: ${{ env.PROJECT_NAME }}-td
+          IMAGE: ${{ steps.acct.outputs.ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.PROJECT_NAME }}:${{ github.ref_name }}
+        run: |
+          BASE_TD=$(aws ecs describe-task-definition --task-definition $FAMILY)
+          EXEC_ROLE=$(echo "$BASE_TD" | jq -r '.taskDefinition.executionRoleArn')
+          TASK_ROLE=$(echo "$BASE_TD" | jq -r '.taskDefinition.taskRoleArn')
+          CPU=$(echo "$BASE_TD" | jq -r '.taskDefinition.cpu')
+          MEM=$(echo "$BASE_TD" | jq -r '.taskDefinition.memory')
+          NET=$(echo "$BASE_TD" | jq -r '.taskDefinition.networkMode')
+          REQS=$(echo "$BASE_TD" | jq -r '.taskDefinition.requiresCompatibilities[]')
+          CONTS=$(echo "$BASE_TD" | jq '.taskDefinition.containerDefinitions')
+          NEW_CONTS=$(echo "$CONTS" | jq ".[0].image = \"$IMAGE\"")
+          NEW_TD=$(jq -n --arg er "$EXEC_ROLE" --arg tr "$TASK_ROLE" --arg cpu "$CPU" --arg mem "$MEM" --arg net "$NET" --argjson conts "$NEW_CONTS" --arg req "$REQS" '
+            { family:"'$FAMILY'", executionRoleArn:$er, taskRoleArn:$tr, networkMode:$net, cpu:$cpu, memory:$mem, requiresCompatibilities:[$req], containerDefinitions:$conts }')
+          echo "$NEW_TD" > new-td.json
+          aws ecs register-task-definition --cli-input-json file://new-td.json > reg.json
+          ARN=$(jq -r '.taskDefinition.taskDefinitionArn' reg.json)
+          echo "TD_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Update ECS Service
+        env:
+          CLUSTER: ${{ env.CLUSTER_NAME }}
+          SERVICE: ${{ env.SERVICE_NAME }}
+          TD_ARN: ${{ steps.regtd.outputs.TD_ARN }}
+        run: aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" --task-definition "$TD_ARN" --force-new-deployment
