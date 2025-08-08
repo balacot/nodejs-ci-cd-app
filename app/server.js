@@ -7,7 +7,7 @@ const server = http.createServer((req, res) => {
     return res.end(JSON.stringify({ status: "ok" }));
   }
   res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("¡Bienvenido a mi aplicación en AWS ECS con CI/CD multi-ambiente!\n");
+  res.end("ESTEE S EL PRIMER CAMBIO");
 });
 
 server.listen(port, () => console.log(`Server running on port ${port}`));

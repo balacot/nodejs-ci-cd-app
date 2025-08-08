@@ -9,4 +9,4 @@ cpu            = 256
 memory         = 512
 
 github_repo = "balacot/nodejs-ci-cd-app"
-oidc_sub    = "repo:balacot/nodejs-ci-cd-app:ref:refs/heads/main"
+oidc_sub    = "repo:balacot/nodejs-ci-cd-app:*"
