@@ -3,7 +3,7 @@ const port = process.env.PORT || 3000;
 
 const server = http.createServer((req, res) => {
   res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("¡Bienvenido a mi aplicación en AWS ECS con CI/CD automatizado!\n");
+  res.end("Bienvenido a mi aplicacion en AWS ECS con CI/CD automatizado!\n");
 });
 
 server.listen(port, () => console.log(`Server running on port ${port}`));
