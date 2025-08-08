@@ -8,7 +8,7 @@ resource "aws_security_group" "service_sg" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description      = "ALB -> app port"
+    description      = "ALB to app port"
     from_port        = var.container_port
     to_port          = var.container_port
     protocol         = "tcp"
