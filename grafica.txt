@@ -1,0 +1,17 @@
+your-repo/
+├─ app/
+│  ├─ Dockerfile
+│  └─ server.js
+├─ terraform/
+│  ├─ providers.tf
+│  ├─ variables.tf
+│  ├─ outputs.tf
+│  ├─ network.tf
+│  ├─ ecr.tf
+│  ├─ iam.tf
+│  ├─ logs.tf
+│  ├─ ecs.tf
+│  └─ alb.tf
+└─ .github/
+   └─ workflows/
+      └─ deploy.yml
