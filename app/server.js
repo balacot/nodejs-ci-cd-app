@@ -1,7 +1,9 @@
 const http = require("http");
 const port = process.env.PORT || 3000;
+
 const server = http.createServer((req, res) => {
-  res.writeHead(200, {"Content-Type":"text/plain"});
-  res.end(`OK - ${new Date().toISOString()}\n`);
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("¡Bienvenido a mi aplicación en AWS ECS con CI/CD automatizado!\n");
 });
-server.listen(port, () => console.log(`Server on ${port}`));
+
+server.listen(port, () => console.log(`Server running on port ${port}`));
